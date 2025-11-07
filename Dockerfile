@@ -1,23 +1,24 @@
-# Use the official Node.js image
-FROM node:18-alpine
-
-# Set the working directory in the container
+# stage 1
+FROM node:18-alpine AS builder
 WORKDIR /usr/src/app
-
-# Copy package.json and package-lock.json to the container
 COPY package*.json ./
-
-# Install application dependencies
 RUN npm install
-
-# Copy application source code to the container
 COPY . .
-
-# Build TypeScript code (assuming your TypeScript code is in src/ and output is in dist/)
 RUN npm run build
 
-# Expose the port your application will run on
-EXPOSE 3000
+# stage 2
+FROM node:18-alpine
+WORKDIR /usr/src/app
+COPY --from=builder /usr/src/app/package*.json ./
+RUN npm install --omit=dev
+COPY --from=builder /usr/src/app/dist ./dist
+COPY --from=builder /usr/src/app/env ./env
+COPY --from=builder /usr/src/app/public ./public
+COPY --from=builder /usr/src/app/views ./views
+COPY --from=builder /usr/src/app/entrypoint.sh ./entrypoint.sh
 
-# Command to start the application
-CMD ["node", "-r", "source-map-support/register", "."]
+RUN chmod +x ./entrypoint.sh
+
+EXPOSE 3000
+ENTRYPOINT [ "./entrypoint.sh" ]
+CMD [ "node", "./dist/bin/www.js" ]
